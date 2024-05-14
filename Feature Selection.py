@@ -62,8 +62,17 @@ data['CIGDLYMO'] = data['CIGDLYMO'].replace({1:1,2:0,5:1,91:0,94: None,97: None}
 data['CIG100LF'] = data['CIG100LF'].replace({1:1,2:0,3:1,5:1,91:0,94: None,97: None})
 data['BLNTNOMJ'] = data['BLNTNOMJ'].replace({1:1,2:0,5:1,14:1,24:1,91:0,93:0,98:None})
 """
-data['BLNTAGE'] = data['BLNTAGE'].where(data['BLNTAGE'] < 70,None)
+data['BLNTAGE'] = data['BLNTAGE'].astype(int)
+
+#print(data['BLNTAGE'].value_counts())
+data['BLNTAGE'] = data['BLNTAGE'].where(data['BLNTAGE'] < 70,None).astype('Int64')
+
+
+
 data.to_csv('drug-use-health/data_new.csv', na_rep=None)
 #pd.set_option("display.max_rows", data.shape[0])
-#print(data['BLNT30DY'].value_counts())
+
+#print(data.select_dtypes(include='float64').columns)
+#print(data['IRCIGFM'].value_counts())
+#print(data['BLNTAGE'].value_counts())
 
