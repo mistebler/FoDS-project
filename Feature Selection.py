@@ -17,8 +17,8 @@ print(data['UDPYIEM'].value_counts())
 binary = ['CIGFLAG','CGRFLAG','PIPFLAG', 'SMKLSSFLAG', 'TOBFLAG', 'ALCFLAG','MRJFLAG','DCIGMON','FUCIG18','FUCIG21', 'FUCGR18','FUCGR21','FUSMKLSS18','FUSMKLSS21','FUALC18','FUALC21','FUMJ18','FUMJ21','DEPNDALC','DEPNDMRJ', 'ABUSEALC','ABUSEMRJ','ABODALC','ABODMRJ','CDUFLAG','CDCGMO','BNGDRKMON','HVYDRKMON','FUCD218','FUCD221','DNICNSP','CIGDLYMO','CIG100LF','PIPE30DY','BLNTNOMJ','BLNTEVER']
 change0 = ['FUCIG18','FUCIG21', 'FUCGR18','FUCGR21','FUSMKLSS18','FUSMKLSS21','FUALC18','FUALC21','FUMJ18','FUMJ21','FUCD218','FUCD221']
 ordinal = ['CIG30TPE','ALCYDAYS','MRJYDAYS','CIGMDAYS','CGRMDAYS','SMKLSMDAYS','ALCMDAYS','MRJMDAYS','BNGDRMDAYS','CIGAVGD']
-change91_0 = ['IRCIGFM','IRCGRFM','IRSMKLSS30N','IRALCFM','IRALCBNG30D','IRMJFM','ALCUS30D','BLNT30DY']
-change991_0 = ['IRALCFY','IRMJFY']
+change91_0 = ['IRCIGFM','IRCGRFM','IRSMKLSS30N','IRALCFM','IRALCBNG30D','IRMJFM','BLNT30DY']
+change991_0 = ['IRALCFY','IRMJFY','ALCUS30D']
 change5_0 = ['CGRMDAYS','SMKLSMDAYS','ALCMDAYS','MRJMDAYS','BNGDRMDAYS']
 change6_0 = ['ALCYDAYS', 'MRJYDAYS','CIGMDAYS']
 none_991 = ['IRCIGAGE','IRCDUAGE','IRCGRAGE','IRSMKLSSTRY','IRALCAGE','IRMJAGE']
@@ -47,7 +47,7 @@ for i in none_991:
 #data['BLNT30DY'].replace(91 | 93,0,inplace=True)
 
 data['BLNT30DY'] = data['BLNT30DY'].replace({94:None,97:None,98:None})
-data['ALCUS30D']= data['ALCUS30D'].replace({85:None, 94:None, 97:None, 98:None})
+data['ALCUS30D']= data['ALCUS30D'].replace({975:5, 985:None, 994:None, 997:None, 998:None})
 #data['CIG30TPE'] = data['CIG30TPE'].replace({1:2,2:1,91:0,93:0,94:None,97:None,98:None})
 
 data['CIGAVGD'] = data['CIGAVGD'].cat.rename_categories({'.':0})
@@ -62,7 +62,7 @@ data['CIGDLYMO'] = data['CIGDLYMO'].replace({1:1,2:0,5:1,91:0,94: None,97: None}
 data['CIG100LF'] = data['CIG100LF'].replace({1:1,2:0,3:1,5:1,91:0,94: None,97: None})
 data['BLNTNOMJ'] = data['BLNTNOMJ'].replace({1:1,2:0,5:1,14:1,24:1,91:0,93:0,98:None})
 """
-data['BLNTAGE'] = data['BLNTAGE'].astype(int)
+#data['BLNTAGE'] = data['BLNTAGE'].astype(int)
 
 #print(data['BLNTAGE'].value_counts())
 data['BLNTAGE'] = data['BLNTAGE'].where(data['BLNTAGE'] < 70,None).astype('Int64')
@@ -73,6 +73,6 @@ data.to_csv('drug-use-health/data_new.csv', na_rep=None)
 #pd.set_option("display.max_rows", data.shape[0])
 
 #print(data.select_dtypes(include='float64').columns)
-#print(data['IRCIGFM'].value_counts())
+#print(data['ALCUS30D'].value_counts())
 #print(data['BLNTAGE'].value_counts())
 
