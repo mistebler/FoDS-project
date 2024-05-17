@@ -67,10 +67,19 @@ data['BLNTAGE'] = data['BLNTAGE'].where(data['BLNTAGE'] < 70,None).astype('Int64
 
 
 
-data.to_csv('drug-use-health/data_new.csv', na_rep=None)
+#data.to_csv('drug-use-health/data_new.csv', na_rep=None)
 #pd.set_option("display.max_rows", data.shape[0])
 
 #print(data.select_dtypes(include='float64').columns)
 #print(data['ALCUS30D'].value_counts())
 #print(data['BLNTAGE'].value_counts())
+vergleich =data[['IRSMKLSSTRY', 'IRCGRAGE','IRCIGAGE']]
+IRTOBAGE = vergleich.agg('min', axis=1)
+data_copy = data.copy()
+data = pd.concat([data,IRTOBAGE.rename('IRTOBAGE')], axis=1)
+vergleich2 = data[['BLNTAGE','IRMJAGE']]
+IRMJALLGAGE = vergleich2.agg('min',axis=1)
+data = pd.concat([data,IRMJALLGAGE.rename('IRMJALLGAGE')],axis=1)
+data.to_csv('drug-use-health/data_new.csv', na_rep=None)
+
 
