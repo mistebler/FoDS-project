@@ -75,7 +75,7 @@ def decide(data):
     return data
 data = decide(data)
 print(data.isna().sum())
-"""
+
 data.dropna(inplace=True)
 #print(data.TOBFLAG.value_counts())
 #print(data_copy.TOBFLAG.value_counts())
@@ -94,7 +94,7 @@ X = data.drop('UDPYIEM',axis=1)
 y = data['UDPYIEM']
 statistic = pd.DataFrame(index = ['F-Statistic','p-value','Chi2 statistic','Ranksum'],columns = X.columns)
 normal = []
-alpha = 0.05
+alpha = 0.05 / data.shape[1]
 for col in num_cols:
     group1 = X.loc[y.values== 1, col]
     group2 = X.loc[y.values== 0, col]
@@ -145,7 +145,6 @@ def selection(data, model):
     cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=1)
     fold = 0
     data_mutual_info = pd.DataFrame(columns = X.columns, index = np.arange(splits))
- 
     for train_index, test_index in cv.split(X,y):
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
@@ -158,5 +157,3 @@ def selection(data, model):
         data_mutual_info.loc[fold,:] = mutual_info_classif(X_train,y_train)
 
         fold+=1
-
-"""
