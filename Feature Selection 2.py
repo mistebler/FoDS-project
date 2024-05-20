@@ -11,8 +11,12 @@ import scipy.stats as sts
 data = pd.read_csv('drug-use-health/data_new.csv', index_col=0)
 def cleaning(data):
     data['UDPYIEM'] = pd.Categorical(data['UDPYIEM'])
+    none_991 = ['IRCIGAGE', 'IRCDUAGE', 'IRCGRAGE', 'IRSMKLSSTRY', 'IRALCAGE', 'IRMJAGE', 'IRTOBAGE','IRMJALLGAGE']
+    data['BLNTAGE'] = data['BLNTAGE'].where(data['BLNTAGE'] < 70, None).astype('Int64')
     binary = ['CIGFLAG','CGRFLAG','PIPFLAG', 'SMKLSSFLAG', 'TOBFLAG', 'ALCFLAG','MRJFLAG','DCIGMON','FUCIG18','FUCIG21', 'FUCGR18','FUCGR21','FUSMKLSS18','FUSMKLSS21','FUALC18','FUALC21','FUMJ18','FUMJ21','DEPNDALC','DEPNDMRJ', 'ABUSEALC','ABUSEMRJ','ABODALC','ABODMRJ','CDUFLAG','CDCGMO','BNGDRKMON','HVYDRKMON','FUCD218','FUCD221','DNICNSP','CIGDLYMO','CIG100LF','PIPE30DY','BLNTNOMJ','BLNTEVER']
-    ordinal = ['CIG30TPE','ALCYDAYS','MRJYDAYS','CIGMDAYS','CGRMDAYS','SMKLSMDAYS','ALCMDAYS','MRJMDAYS','BNGDRMDAYS','CIGAVGD']
+    ordinal = ['CIG30TPE','ALCYDAYS','MRJYDAYS','CIGMDAYS','CGRMDAYS','SMKLSMDAYS','ALCMDAYS','MRJMDAYS','BNGDRMDAYS','CIGAVGD', 'AGEALC','AGETOB','AGEMRJ']
+    for i in none_991:
+        data[i] = data[i].replace({991:None, 993:None, 999:None})
     for i in ordinal:
         if i == 'CIGAVGD':
             data[i] = pd.Categorical(data[i], ordered=True)
@@ -24,7 +28,9 @@ def cleaning(data):
     convert = ['ALCUS30D','IRCIGAGE', 'IRCDUAGE', 'IRCGRAGE', 'IRSMKLSSTRY', 'IRALCAGE','IRMJAGE', 'BLNTAGE', 'BLNT30DY','IRTOBAGE','IRMJALLGAGE']
     for i in convert:
         data[i] = data[i].astype('Int64')
+    data.drop(['IRTOBAGE', 'IRMJALLGAGE', 'IRALCAGE'], axis=1, inplace=True)
     return data
+
 #print(data.select_dtypes(include='float64').columns.tolist())
 """
 anschauen = []
@@ -67,6 +73,7 @@ data.drop(['IRSMKLSSTRY','IRCGRAGE','IRCIGAGE','BLNTAGE','IRMJAGE','IRCDUAGE'],a
 
 #Feature Filtering (preprocessing)
 data_copy = data.copy() #mit NaN
+"""
 def decide(data):
     if input('Alter wichtiger? (y/n): ').lower() == 'y':
         data.drop(['CIGFLAG','CGRFLAG','PIPFLAG','SMKLSSFLAG','TOBFLAG','ALCFLAG','MRJFLAG'],inplace=True,axis=1)
@@ -74,7 +81,8 @@ def decide(data):
         data.drop(['IRTOBAGE','IRMJALLGAGE','IRALCAGE'],axis=1,inplace=True)
     return data
 data = decide(data)
-print(data.isna().sum())
+"""
+print(data.isna().sum().sort_values(ascending=False))
 
 data.dropna(inplace=True)
 #print(data.TOBFLAG.value_counts())
