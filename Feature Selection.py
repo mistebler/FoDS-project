@@ -85,7 +85,7 @@ illicit_verg = data[['IRCOCAGE','IRCRKAGE','IRHERAGE','IRHALLUCAGE','IRLSDAGE','
     #print(data[i].head(1))
 #print(data['IRALCAGE'].head(5))
 ILLICITAGE = illicit_verg.agg('min', axis=1)
-illicit_nachher = pd.concat([])
+illicit_nachher = pd.concat([]) ##wie mache damit wenn mj,alc oder tob serste isch ned useneh
 #ILLICITAGE.replace({None:991},inplace=True)
 IRTOBAGE = IRTOBAGE.where(IRTOBAGE<ILLICITAGE)
 #IRTOBAGE = IRTOBAGE2.replace({991:None})
