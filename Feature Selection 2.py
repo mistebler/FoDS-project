@@ -5,13 +5,14 @@ import seaborn as sns
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
-from sklearn.feature_selection import chi2, f_classif, SelectKBest, mutual_info_classif
+from sklearn.feature_selection import chi2, f_classif, SelectKBest, mutual_info_classif, VarianceThreshold
 import scipy.stats as sts
-#eif drop_na??
+from sklearn.metrics import roc_curve, auc, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+
 data = pd.read_csv('drug-use-health/data_new.csv', index_col=0)
 def cleaning(data):
     data['UDPYIEM'] = pd.Categorical(data['UDPYIEM'])
-    none_991 = ['IRCIGAGE', 'IRCDUAGE', 'IRCGRAGE', 'IRSMKLSSTRY', 'IRALCAGE', 'IRMJAGE', 'IRTOBAGE','IRMJALLGAGE']
+    none_991 = ['IRCIGAGE', 'IRCDUAGE', 'IRCGRAGE', 'IRSMKLSSTRY', 'IRALCAGE', 'IRMJAGE', 'IRTOBAGE','IRMJALLGAGE','ILLICITAGE']
     data['BLNTAGE'] = data['BLNTAGE'].where(data['BLNTAGE'] < 70, None).astype('Int64')
     binary = ['CIGFLAG','CGRFLAG','PIPFLAG', 'SMKLSSFLAG', 'TOBFLAG', 'ALCFLAG','MRJFLAG','DCIGMON','FUCIG18','FUCIG21', 'FUCGR18','FUCGR21','FUSMKLSS18','FUSMKLSS21','FUALC18','FUALC21','FUMJ18','FUMJ21','DEPNDALC','DEPNDMRJ', 'ABUSEALC','ABUSEMRJ','ABODALC','ABODMRJ','CDUFLAG','CDCGMO','BNGDRKMON','HVYDRKMON','FUCD218','FUCD221','DNICNSP','CIGDLYMO','CIG100LF','PIPE30DY','BLNTNOMJ','BLNTEVER']
     ordinal = ['CIG30TPE','ALCYDAYS','MRJYDAYS','CIGMDAYS','CGRMDAYS','SMKLSMDAYS','ALCMDAYS','MRJMDAYS','BNGDRMDAYS','CIGAVGD', 'AGEALC','AGETOB','AGEMRJ']
@@ -28,10 +29,12 @@ def cleaning(data):
     convert = ['ALCUS30D','IRCIGAGE', 'IRCDUAGE', 'IRCGRAGE', 'IRSMKLSSTRY', 'IRALCAGE','IRMJAGE', 'BLNTAGE', 'BLNT30DY','IRTOBAGE','IRMJALLGAGE']
     for i in convert:
         data[i] = data[i].astype('Int64')
-    data.drop(['IRTOBAGE', 'IRMJALLGAGE', 'IRALCAGE'], axis=1, inplace=True)
+    data.drop(['IRCOCAGE','IRCRKAGE','IRHERAGE','IRHALLUCAGE','IRLSDAGE','IRPCPAGE','IRECSTMOAGE','IRINHALAGE','IRMETHAMAGE','IRPNRNMAGE','IRTRQNMAGE','IRSTMNMAGE','IRSEDNMAGE'], axis=1, inplace=True)
+    data.drop(['BLNTNOMJ'], axis=1, inplace=True)
     return data
 
 #print(data.select_dtypes(include='float64').columns.tolist())
+
 """
 anschauen = []
 
@@ -55,8 +58,9 @@ print(anschauen)
 
 #Feature Continuous --> Anova
 #Feature Categorical --> Chi-Square
-#print(data.isna().sum().sort_values(ascending=False)/data.shape[0])
 data = cleaning(data)
+#print(data.isna().sum().sort_values(ascending=False)/data.shape[0])
+
 #Grobe Feature selection (meisten Nan values)
 plt.figure(figsize=(14,6))
 plt.bar(data.isna().sum().sort_values(ascending=False).index, data.isna().sum().sort_values(ascending=False)/data.shape[0])
@@ -68,7 +72,11 @@ plt.tight_layout()
 plt.savefig('figures/missing_values.png')
 #print(IRMJALLGAGE.isna().sum()/data.shape[0])
 pd.set_option("display.max_columns", data.shape[1])
-data.drop(['IRSMKLSSTRY','IRCGRAGE','IRCIGAGE','BLNTAGE','IRMJAGE','IRCDUAGE'],axis=1,inplace=True)
+def rough_filtering(df):
+    df.drop(['IRSMKLSSTRY','IRCGRAGE','IRCIGAGE','BLNTAGE','IRMJAGE','IRCDUAGE'],axis=1,inplace=True)
+    #Alter rausnehmen --> befindet sich in neuen Features als ordinal data
+    df.drop(['IRTOBAGE', 'IRMJALLGAGE', 'IRALCAGE','ILLICITAGE'], axis=1, inplace=True)
+    return df
 
 
 #Feature Filtering (preprocessing)
@@ -82,22 +90,20 @@ def decide(data):
     return data
 data = decide(data)
 """
-print(data.isna().sum().sort_values(ascending=False))
+data = rough_filtering(data)
+
+#print(data.isna().sum().sort_values(ascending=False)/data.shape[0])
 
 data.dropna(inplace=True)
 #print(data.TOBFLAG.value_counts())
-#print(data_copy.TOBFLAG.value_counts())
 #print(data.UDPYIEM.value_counts())
-#print(data_copy.UDPYIEM.value_counts())
 
-#print(data_evt.shape)
-#data_evt2 = data.dropna(subset=['IRMJALLGAGE','IRTOBAGE','IRALCAGE'])
-#print(data_evt2.shape)
-#print(data_evt2.isna().sum().sort_values(ascending=False))
-#print(data.isna().sum().sort_values(ascending=False))
+"""
 num_cols = data.select_dtypes(include=['Int64','float64']).columns.tolist()
+#print(num_cols)
 cate_cols = data.select_dtypes(include=['object','category']).columns.tolist()
 cate_cols.remove('UDPYIEM')
+#print(cate_cols)
 X = data.drop('UDPYIEM',axis=1)
 y = data['UDPYIEM']
 statistic = pd.DataFrame(index = ['F-Statistic','p-value','Chi2 statistic','Ranksum'],columns = X.columns)
@@ -134,10 +140,28 @@ plt.axhline(alpha, linestyle='--', color='r', label='Significance level')
 plt.legend()
 plt.tight_layout()
 plt.savefig('figures/p-value-distribution.png')
+pvalues = statistic.loc['p-value',:]
+"""
+def eval(y,X,clf):
+    y_pred = clf.predict(X)
+    y_pred_proba = clf.predict_proba(X)[:,1]
+    tn, fp, fn, tp = confusion_matrix(y, y_pred).ravel()
 
+    accuracy = accuracy_score(y, y_pred)
+    precision = precision_score(y,y_pred)
+    recall = recall_score(y,y_pred)
+    f1 = f1_score(y,y_pred)
+    fp_rates, tp_rates = roc_curve(y, y_pred_proba)
 
-def selection(data, model):
+    roc_auc = auc(fp_rates,tp_rates)
 
+    return tp,fp,tn,accuracy, precision,recall,f1,roc_auc
+
+def selection(X_train,y_train,model,how,n):
+    UVFS_Selector = SelectKBest(score_func=how, k=n)
+    X_selected = UVFS_Selector.fit_transform(X_train,y_train)
+
+def prepare(data, model):
     num_cols = data.select_dtypes(include=['Int64','float64']).columns.tolist()
     cate_cols = data.select_dtypes(include=['object','category']).columns.tolist()
     cate_cols.remove('UDPYIEM')
