@@ -43,24 +43,12 @@ for i in change991_0:
     data[i] = data[i].replace({991:0, 993:0})
 #for i in none_991:
     #data[i] = data[i].replace({991:None, 993:None, 999:None})
-#data['ALCUS30D'].replace(91 | 93,0,inplace=True)
-#data['BLNT30DY'].replace(91 | 93,0,inplace=True)
+
 
 data['BLNT30DY'] = data['BLNT30DY'].replace({94:None,97:None,98:None})
 data['ALCUS30D']= data['ALCUS30D'].replace({975:5, 985:None, 994:None, 997:None, 998:None})
-#data['CIG30TPE'] = data['CIG30TPE'].replace({1:2,2:1,91:0,93:0,94:None,97:None,98:None})
-#data['PIPE30DY'] = data['PIPE30DY'].cat.rename_categories({1:1,2:0,91:0})
-#data['CIGDLYMO'] = data['CIGDLYMO'].cat.rename_categories({1:1,2:0,5:1,91:0})
-#data['CIG100LF'] = data['CIG100LF'].cat.rename_categories({1:1,2:0,3:1,5:1,91:0})
-#data['BLNTNOMJ'] = data['BLNTNOMJ'].cat.rename_categories({1:1,2:0,5:1,14:1,24:1,91:0})
-#data['CIG30TPE'] = data['CIG30TPE'].cat.rename_categories({1:2,2:1,91:0,93:0})
-"""
-data['PIPE30DY'] = data['PIPE30DY'].replace({1:1,2:0,91:0,94: None,97: None, 98: None})
-data['CIGDLYMO'] = data['CIGDLYMO'].replace({1:1,2:0,5:1,91:0,94: None,97: None})
-data['CIG100LF'] = data['CIG100LF'].replace({1:1,2:0,3:1,5:1,91:0,94: None,97: None})
-data['BLNTNOMJ'] = data['BLNTNOMJ'].replace({1:1,2:0,5:1,14:1,24:1,91:0,93:0,98:None})
-"""
-#data['BLNTAGE'] = data['BLNTAGE'].astype(int)
+
+
 
 #print(data['BLNTAGE'].value_counts())
 
@@ -74,31 +62,59 @@ data['BLNTNOMJ'] = data['BLNTNOMJ'].replace({1:1,2:0,5:1,14:1,24:1,91:0,93:0,98:
 #print(data.select_dtypes(include='float64').columns)
 #print(data['ALCUS30D'].value_counts())
 #print(data['BLNTAGE'].value_counts())
+data_copy = data.copy()
+
 vergleich =data[['IRSMKLSSTRY', 'IRCGRAGE','IRCIGAGE']]
 IRTOBAGE = vergleich.agg('min', axis=1)
-data_copy = data.copy()
+
 
 vergleich2 = data[['BLNTAGE','IRMJAGE']]
 IRMJALLGAGE = vergleich2.agg('min',axis=1)
+
+IRALCAGE = data['IRALCAGE']
+
+
 illicit_verg = data[['IRCOCAGE','IRCRKAGE','IRHERAGE','IRHALLUCAGE','IRLSDAGE','IRPCPAGE','IRECSTMOAGE','IRINHALAGE','IRMETHAMAGE','IRPNRNMAGE','IRTRQNMAGE','IRSTMNMAGE','IRSEDNMAGE']]
+ILLICITAGE = illicit_verg.agg('min', axis=1)
 #for i in illicit_verg.columns:
     #print(data[i].head(1))
 #print(data['IRALCAGE'].head(5))
-ILLICITAGE = illicit_verg.agg('min', axis=1)
-illicit_nachher = pd.concat([]) ##wie mache damit wenn mj,alc oder tob serste isch ned useneh
-#ILLICITAGE.replace({None:991},inplace=True)
+
+
+age = pd.concat([ILLICITAGE.rename('ILLICITAGE'),IRALCAGE,IRMJALLGAGE.rename('IRMJALLGAGE'),IRTOBAGE.rename('IRTOBAGE')], axis=1)
+
+#hier wieviele jeweils was zuerst machten:
+print(age.idxmin(axis='columns').value_counts())
+
+#column machen wo bei allen werten welche illicit drugs zuerst genommen wurden waren NaN values hat
+age_consumption = age.agg('min', axis=1)
+ILLICITAGE = age_consumption.where(age_consumption != ILLICITAGE)
+
+#print(ILLICITAGE.isna().sum())
+
+#Neue Features dazugenommen und alle Personen welche zuerst illicit drugs genommen haben rausnehmen
+data = pd.concat([data,IRTOBAGE.rename('IRTOBAGE')], axis=1)
+data = pd.concat([data,IRMJALLGAGE.rename('IRMJALLGAGE')],axis=1)
+data = pd.concat([data,ILLICITAGE.rename('ILLICITAGE')], axis=1)
+#print(data.ILLICITAGE.isna().sum())
+data.dropna(axis=0,subset=['ILLICITAGE'],inplace=True)
+
+"""
 IRTOBAGE = IRTOBAGE.where(IRTOBAGE<ILLICITAGE)
 #IRTOBAGE = IRTOBAGE2.replace({991:None})
 data = pd.concat([data,IRTOBAGE.rename('IRTOBAGE')], axis=1)
-IRALCAGE = data['IRALCAGE']
-IRALCAGE.where(IRALCAGE<ILLICITAGE,inplace=True)
-data['IRALCAGE'] = IRALCAGE
+
+
 #IRMJALLGAGE.replace({None:991},inplace=True)
-#print(IRMJALLGAGE)
-#print(ILLICITAGE)
 IRMJALLGAGE = IRMJALLGAGE.where(IRMJALLGAGE<ILLICITAGE)
 #IRMJALLGAGE = IRMJALLGAGE2.replace({991:None})
 data = pd.concat([data,IRMJALLGAGE.rename('IRMJALLGAGE')],axis=1)
+
+IRALCAGE.where(IRALCAGE<ILLICITAGE,inplace=True)
+data['IRALCAGE'] = IRALCAGE
+"""
+
+#Neue Features mit den Altern aber als ordinal data
 data['AGEALC'] = pd.cut(data.IRALCAGE, bins=[0,8,16,24,32,40,48,56,64,72,80,88,999], labels=[1,2,3,4,5,6,7,8,9,10,11,12],ordered =True)
 data['AGETOB'] = pd.cut(data.IRTOBAGE, bins=[0,8,16,24,32,40,48,56,64,72,80,88,999], labels=[1,2,3,4,5,6,7,8,9,10,11,12],ordered =True)
 data['AGEMRJ'] = pd.cut(data.IRMJALLGAGE, bins=[0,8,16,24,32,40,48,56,64,72,80,88,999], labels=[1,2,3,4,5,6,7,8,9,10,11,12],ordered =True)
