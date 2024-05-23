@@ -99,9 +99,17 @@ data = rough_filtering(data)
 #print(data.isna().sum().sort_values(ascending=False)/data.shape[0])
 
 data.dropna(inplace=True)
-#print(data.TOBFLAG.value_counts())
-#print(data.UDPYIEM.value_counts())
-
+ordinal = []
+binary = []
+categorical = data.select_dtypes(include=['object','category']).columns.tolist()
+for col in categorical:
+    if data[col].cat.ordered == True:
+            ordinal.append(col)
+    else:
+        binary.append(col)
+binary.remove('UDPYIEM')
+#onehotencoding nur für nominal data?
+#sonst ordinalencoder?
 """
 num_cols = data.select_dtypes(include=['Int64','float64']).columns.tolist()
 #print(num_cols)
@@ -147,6 +155,7 @@ plt.savefig('figures/p-value-distribution.png')
 pvalues = statistic.loc['p-value',:]
 """
 tests = ['f_classif', 'chi2', 'mututal_info_classif']
+#accuracy direkt rausnehmen
 metrics = {'accuracy':[], 'precision':[], 'recall':[], 'specificity':[],'f1':[], 'roc_auc':[]}
 def eval(y,X,clf,ax,legend_entry='my legendEntry'):
     y_pred = clf.predict(X)
@@ -171,7 +180,7 @@ def selection(X_train,y_train,how,n,what):
     UVFS_Selector = SelectKBest(score_func=how, k=n)
     X_selected = UVFS_Selector.fit_transform(X_train,y_train)
     if what == 'scores':
-        # in vorlesung zu Categorical output und numerical input kendall benutzen, wie?
+        # in vorlesung zu Categorical output und numerical input kendall benutzen, wie? --> Zu kompliziert
         # vorallem wären hier scores wichtig, welchen test für nicht normalverteilte?
         return UVFS_Selector.scores_
     if what == 'features':
@@ -202,9 +211,7 @@ plt.savefig('figures/roc_curve.png')
 """
 #ihr müsst für euer model die parameter (als dictionary) setzen --> z.b. bei random forest max_depth und criterion(gini;entropy)
 # mit estimator.get_params() dictionary mit allen möglichen parametern
-def hypertuning(X,y,parameters,model):
-    splits = 5
-    cv = StratifiedKFold(n_splits=splits, shuffle=True)
+def hypertuning(X,y,parameters,model,cv):
     param_grid = parameters
     scoring = {'precision': precision_score,'f1': f1_score,'recall':recall_score}
     clf_GS = GridSearchCV(estimator=model, param_grid=param_grid, scoring=scoring, cv=cv)
