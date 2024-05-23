@@ -213,7 +213,7 @@ def hypertuning(X,y,parameters,model):
     #gibt den besten estimator an --> z.B. um y_prediction zu bekommen hyptertuning(...).predict(X) angeben
     return clf_GS.best_estimator_
 
-def everything(data, model, param):
+def everything(data, model, param, random):
     performance = pd.DataFrame(columns=['fold','clf','accuracy','precision','recall',
                                          'specificity','F1','roc_auc'])
     num_cols = data.select_dtypes(include=['Int64','float64']).columns.tolist()
@@ -228,7 +228,7 @@ def everything(data, model, param):
     #X_test[num_cols] = scaler.transform(X_test[num_cols])
 
     splits = 5
-    cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=1)
+    cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=random)
     fold = 0
 
     for train_index, test_index in cv.split(X,y):
