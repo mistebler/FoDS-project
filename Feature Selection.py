@@ -99,20 +99,6 @@ data = pd.concat([data,ILLICITAGE.rename('ILLICITAGE')], axis=1)
 #print(data.ILLICITAGE.isna().sum())
 data.dropna(axis=0,subset=['ILLICITAGE'],inplace=True)
 
-"""
-IRTOBAGE = IRTOBAGE.where(IRTOBAGE<ILLICITAGE)
-#IRTOBAGE = IRTOBAGE2.replace({991:None})
-data = pd.concat([data,IRTOBAGE.rename('IRTOBAGE')], axis=1)
-
-
-#IRMJALLGAGE.replace({None:991},inplace=True)
-IRMJALLGAGE = IRMJALLGAGE.where(IRMJALLGAGE<ILLICITAGE)
-#IRMJALLGAGE = IRMJALLGAGE2.replace({991:None})
-data = pd.concat([data,IRMJALLGAGE.rename('IRMJALLGAGE')],axis=1)
-
-IRALCAGE.where(IRALCAGE<ILLICITAGE,inplace=True)
-data['IRALCAGE'] = IRALCAGE
-"""
 
 #Neue Features mit den Altern aber als ordinal data
 data['AGEALC'] = pd.cut(data.IRALCAGE, bins=[0,8,16,24,32,40,48,56,64,72,80,88,999], labels=[1,2,3,4,5,6,7,8,9,10,11,12],ordered =True)
