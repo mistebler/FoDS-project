@@ -5,11 +5,23 @@ import seaborn as sns
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
-from sklearn.feature_selection import chi2, f_classif, SelectKBest, mutual_info_classif, VarianceThreshold
+from sklearn.feature_selection import chi2, f_classif, SelectKBest, mutual_info_classif, VarianceThreshold, SelectFromModel
 import scipy.stats as sts
-from sklearn.metrics import roc_curve, auc, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import roc_curve, auc, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix,  precision_recall_curve
 
 data = pd.read_csv('drug-use-health/data_new.csv', index_col=0)
+def add_identity(axes, *line_args, **line_kwargs):
+    identity, = axes.plot([], [], *line_args, **line_kwargs)
+    def callback(axes):
+        low_x, high_x = axes.get_xlim()
+        low_y, high_y = axes.get_ylim()
+        low = max(low_x, low_y)
+        high = min(high_x, high_y)
+        identity.set_data([low, high], [low, high])
+    callback(axes)
+    axes.callbacks.connect('xlim_changed', callback)
+    axes.callbacks.connect('ylim_changed', callback)
+    return axes
 def cleaning(data):
     data['UDPYIEM'] = pd.Categorical(data['UDPYIEM'])
     none_991 = ['IRCIGAGE', 'IRCDUAGE', 'IRCGRAGE', 'IRSMKLSSTRY', 'IRALCAGE', 'IRMJAGE', 'IRTOBAGE','IRMJALLGAGE','ILLICITAGE']
@@ -81,15 +93,7 @@ def rough_filtering(df):
 
 #Feature Filtering (preprocessing)
 data_copy = data.copy() #mit NaN
-"""
-def decide(data):
-    if input('Alter wichtiger? (y/n): ').lower() == 'y':
-        data.drop(['CIGFLAG','CGRFLAG','PIPFLAG','SMKLSSFLAG','TOBFLAG','ALCFLAG','MRJFLAG'],inplace=True,axis=1)
-    else:
-        data.drop(['IRTOBAGE','IRMJALLGAGE','IRALCAGE'],axis=1,inplace=True)
-    return data
-data = decide(data)
-"""
+
 data = rough_filtering(data)
 
 #print(data.isna().sum().sort_values(ascending=False)/data.shape[0])
@@ -142,26 +146,76 @@ plt.tight_layout()
 plt.savefig('figures/p-value-distribution.png')
 pvalues = statistic.loc['p-value',:]
 """
-def eval(y,X,clf):
+tests = ['f_classif', 'chi2', 'mututal_info_classif']
+metrics = {'accuracy':[], 'precision':[], 'recall':[], 'specificity':[],'f1':[], 'roc_auc':[]}
+def eval(y,X,clf,ax,legend_entry='my legendEntry'):
     y_pred = clf.predict(X)
     y_pred_proba = clf.predict_proba(X)[:,1]
     tn, fp, fn, tp = confusion_matrix(y, y_pred).ravel()
 
+    #accuracy prolly useneh --> unbalanced also wird eh nicht viel aussagen
     accuracy = accuracy_score(y, y_pred)
     precision = precision_score(y,y_pred)
     recall = recall_score(y,y_pred)
     f1 = f1_score(y,y_pred)
+    specificity = tn / (tn + fp)
     fp_rates, tp_rates = roc_curve(y, y_pred_proba)
 
     roc_auc = auc(fp_rates,tp_rates)
+    ax.plot(fp_rates, tp_rates, label=f'Classifier fold {legend_entry} ')
+    return [accuracy, precision,recall,specificity,f1,roc_auc]
 
-    return tp,fp,tn,accuracy, precision,recall,f1,roc_auc
-
-def selection(X_train,y_train,model,how,n):
+def selection(X_train,y_train,how,n,what):
+    #um von allen den score zu erhalten eifach n= 'all' setzen
+    #how möglichkeiten: [chi2,f_classif,mutual_info_classif] also oben bei tests = ...
     UVFS_Selector = SelectKBest(score_func=how, k=n)
     X_selected = UVFS_Selector.fit_transform(X_train,y_train)
+    if what == 'scores':
+        # in vorlesung zu Categorical output und numerical input kendall benutzen, wie?
+        # vorallem wären hier scores wichtig, welchen test für nicht normalverteilte?
+        return UVFS_Selector.scores_
+    if what == 'features':
+        return UVFS_Selector.get_feature_names_out()
+    #wenn what == mututal info nicht besten direkt suchen sondern alle werden bewertet --> evt einfacher zum nachher plotten
+    if what == 'mutual info':
+        mutual_info = mutual_info_classif(X_train,y_train)
+        mutual_info = pd.Series(mutual_info, index=X_train.columns).sort_values(ascending=False)
+        return mutual_info
 
-def prepare(data, model):
+
+def picture(x,y,features,ax):
+    ax.bar(x,y)
+    ax.set_xticks(ticks=x,labels=features,rotation=90)
+    ax.set_title(input('Title: '))
+
+#fig, axs = plt.subplots(1,4,figsize=(9,4)) um nachher bei allen die roc_auc curve zu machen
+"""
+model_names = []
+for i,ax in enumerate(axs):
+    ax.set_xlabel('False Positive Rate')
+    ax.set_ylabel('True Positive Rate')
+    ax.set_title('f'ROC curve for {model_names[i]}')
+    add_identity(ax,color='r',ls='--', label = 'random\nclassifier')
+    plt.legend(loc='best')
+plt.tight_layout()
+plt.savefig('figures/roc_curve.png')
+"""
+#ihr müsst für euer model die parameter (als dictionary) setzen --> z.b. bei random forest max_depth und criterion(gini;entropy)
+# mit estimator.get_params() dictionary mit allen möglichen parametern
+def hypertuning(X,y,parameters,model):
+    splits = 5
+    cv = StratifiedKFold(n_splits=splits, shuffle=True)
+    param_grid = parameters
+    scoring = {'precision': precision_score,'f1': f1_score,'recall':recall_score}
+    clf_GS = GridSearchCV(estimator=model, param_grid=param_grid, scoring=scoring, cv=cv)
+    clf_GS.fit(X,y)
+    # nachher hyptertuning().etc nehmen
+    #gibt den besten estimator an --> z.B. um y_prediction zu bekommen hyptertuning(...).predict(X) angeben
+    return clf_GS.best_estimator_
+
+def everything(data, model, param):
+    performance = pd.DataFrame(columns=['fold','clf','accuracy','precision','recall',
+                                         'specificity','F1','roc_auc'])
     num_cols = data.select_dtypes(include=['Int64','float64']).columns.tolist()
     cate_cols = data.select_dtypes(include=['object','category']).columns.tolist()
     cate_cols.remove('UDPYIEM')
@@ -169,14 +223,14 @@ def prepare(data, model):
     X = data_enc.drop('UDPYIEM',axis=1)
     y= data.UDPYIEM
     #X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.2,random_state=1,stratify=y)
+    #scaler = StandardScaler()
+    #X_train[num_cols] = scaler.fit_transform(X_train[num_cols])
+    #X_test[num_cols] = scaler.transform(X_test[num_cols])
 
-    #X_train = scaler.fit_transform(X_train[num_cols])
-    #X_test = scaler.transform(X_test[num_cols])
-    #UVFS_Selector = SelectKBest(f_classif, k=)
     splits = 5
     cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=1)
     fold = 0
-    data_mutual_info = pd.DataFrame(columns = X.columns, index = np.arange(splits))
+
     for train_index, test_index in cv.split(X,y):
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
@@ -186,6 +240,11 @@ def prepare(data, model):
         X_test[num_cols] = scaler.transform(X_test[num_cols])
 
         #statistical testing the training features
-        data_mutual_info.loc[fold,:] = mutual_info_classif(X_train,y_train)
+        #zb bei mutual info wie entscheidet man welchen fold anzuschauen und damit weiterzuarbeiten?
+        #gleiche bei den Hyperparametern
+
 
         fold+=1
+#bevor implementieren schauen welche parameter auswählen damit man die eingeben kann
+#embedded methods für feature selection abhängig von der model wahl --> z.b. bei logistic regression lasso, ridge möglich; bei Random Forest feature importance (alles durch die Funktion SelectFromModel(model([hypterparameters().best_params_]])) = irgendwas --> das dann .fit etc
+#SelectFromModel() kann bei allen estimators verwendet werden welche attribute coef_ oder feature_importances_ hat
