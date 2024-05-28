@@ -101,6 +101,7 @@ data = rough_filtering(data)
 #print(data.isna().sum().sort_values(ascending=False)/data.shape[0])
 
 data.dropna(inplace=True)
+
 ordinal = []
 binary = []
 categorical = data.select_dtypes(include=['object','category']).columns.tolist()
@@ -191,17 +192,26 @@ def selection(X_train,y_train,how,n,what,ax, title='entry'):
     if what == 'mutual info':
         mutual_info = mutual_info_classif(X_train,y_train)
         mutual_info = pd.Series(mutual_info, index=X_train.columns).sort_values(ascending=False)
-        ax.bar(mutual_info.index, mutual_info, title=f'Mutual Information scores for fold {title}')
+        ax.bar(mutual_info.index, mutual_info)
+        ax.set_title(f'Mutual Information scores for fold {title}')
+        ax.set_xticks(np.arange(len(mutual_info)),mutual_info.index, rotation=90)
         ax.set_xlabel('Features')
         ax.set_ylabel('Scores')
         return mutual_info
     if what == 'pic':
-        ax.bar(UVFS_Selector.feature_names_in_ , UVFS_Selector.scores_, title=f'Feature scores for fold {title}')
+        #feature_sel = pd.Series(map(UVFS_Selector.feature_names_in_,UVFS_Selector.scores_),index=UVFS_Selector.feature_names_in_).sort_values(ascending=False)
+        feature_sel = pd.Series(UVFS_Selector.scores_,
+                                index=UVFS_Selector.feature_names_in_).sort_values(ascending=False)
+        #ax.bar(UVFS_Selector.feature_names_in_ , UVFS_Selector.scores_)
+        ax.bar(feature_sel.index, feature_sel)
+        ax.set_title(f'Feature scores for fold {title}')
+        #ax.set_xticks(np.arange(len(UVFS_Selector.feature_names_in_)), UVFS_Selector.feature_names_in_, rotation=90)
+        ax.set_xticks(np.arange(len(UVFS_Selector.feature_names_in_)),feature_sel.index, rotation=90)
         ax.set_xlabel('Features')
         ax.set_ylabel('Scores')
 
-def picture(x,y,features,ax):
-    ax.bar(x,y)
+def picture(x,height,features,ax):
+    ax.bar(x,height)
     ax.set_xticks(ticks=x,labels=features,rotation=90)
     ax.set_title(input('Title: '))
 
@@ -243,30 +253,58 @@ def everything(data, model,param, random,what):
             ordinal.append(col)
         else:
             nominal.append(col)
-    X_enc = pd.get_dummies(X,columns=nominal,drop_first=True)
+    #all_columns = ordinal + nominal + num_cols
+    #X_enc = pd.get_dummies(X,columns=nominal,drop_first=True)
     splits = 5
     cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=random)
     fold = 0
     tuning = pd.DataFrame(columns=list(param.keys()),index=np.arange(splits))
-    fig,axs = plt.subplots(1,5,figsize=(10,5))
-    for train_index, test_index in cv.split(X_enc,y):
+    fig,axs = plt.subplots(5,1,figsize=(30,25))
+    feature_sel = pd.DataFrame(columns=X.columns,index=np.arange(splits))
+    for train_index, test_index in cv.split(X,y):
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        sc = StandardScaler()
-        X_train.loc[:,num_cols]=sc.fit_transform(X_train[num_cols])
-        X_test.loc[:,num_cols]=sc.transform(X_test[num_cols])
-        #transformer = ColumnTransformer(transformers=[('ordinal', OrdinalEncoder(handle_unknown='use_encoded_value',unknown_value=np.nan),ordinal),('binary', OneHotEncoder(handle_unknown='ignore'),binary),('num',StandardScaler(),num_cols)])
-        #X_train = transformer.fit_transform(X_train)
-        #X_test = transformer.transform(X_test)
+        #sc = StandardScaler()
+        #X_train.loc[num_cols]=sc.fit_transform(X_train[num_cols])
+        #X_test.loc[num_cols]=sc.transform(X_test[num_cols])
+        X_train_copy = X_train.copy()
+        X_test_copy = X_test.copy()
+        num_cols_test = X_test.select_dtypes(include=['Int64', 'float64']).columns.tolist()
+        cate_cols_test = X_test.select_dtypes(include=['object', 'category']).columns.tolist()
+        ordinal_test = []
+        nominal_test = []
+        for col in cate_cols_test:
+            if X_test[col].cat.ordered == True:
+                ordinal_test.append(col)
+            else:
+                nominal_test.append(col)
+        #transformer = ColumnTransformer(transformers=[('ordinal', OrdinalEncoder(handle_unknown='use_encoded_value',unknown_value=np.nan),ordinal),('binary', OneHotEncoder(handle_unknown='ignore'),nominal),('num',StandardScaler(),num_cols)])
+        transformer = ColumnTransformer(transformers=[('ordinal', OrdinalEncoder(handle_unknown='use_encoded_value',unknown_value=np.nan),ordinal),('num',StandardScaler(),num_cols)])
+        X_train = transformer.fit_transform(X_train)
+        #binary = transformer.named_transformers_['binary'].get_feature_names_out().tolist()
 
-        #encoding richtig machen!!!
-        #print(list(map(hyper(X_train,y_train,model,param,5).best_estimator_.get_params().get,['C','solver'])))
+        #all_columns = ordinal + binary+ num_cols
+        all_columns = ordinal + num_cols
+        X_train = pd.DataFrame(X_train, columns=all_columns, index=X_train_copy.index)
+        X_train = pd.concat([X_train,X_train_copy[nominal]],axis=1)
+        X_test = transformer.transform(X_test)
+        #binary_test = transformer.named_transformers_['binary'].get_feature_names_out(nominal_test).tolist()
+        #all_columns_test = ordinal_test + binary_test + num_cols_test
+        all_columns_test = ordinal_test + num_cols_test
+        X_test = pd.DataFrame(X_test, columns=all_columns_test, index=X_test_copy.index)
+        X_test = pd.concat([X_test,X_test_copy[nominal_test]])
+
+        #hyperparameter welcher am besten passt finden und in tuning speichern --> am schluss schauen und according zu dem die Hyperparameter setzen:
         tuning.loc[fold,list(param.keys())] = list(map(hyper(X_train,y_train,model,param,5).best_estimator_.get_params().get, list(param.keys())))
-        selection(X_train,y_train,mutual_info_classif,'all','mutual info',axs[fold],title = str(fold))
 
-        #statistical testing the training features
-        #zb bei mutual info wie entscheidet man welchen fold anzuschauen und damit weiterzuarbeiten?
-        #gleiche bei den Hyperparametern
+        #feature selection (filter method)
+
+        #bild welches für alle 5 folds die Feature scores zeigt --> anschauen und dann auswählen welche am besten sind
+        #selection(X_train,y_train,mutual_info_classif,'all','mutual info',axs[fold],title = str(fold+1))
+        #die besten auswählen (Cat input, cat output)
+        selection(X_train[cate_cols],y_train,chi2,'all','pic',axs[fold], title =str(fold+1))
+
+
 
 
         fold+=1
