@@ -2,6 +2,8 @@ from code import *
 from Feature_Selection_2 import *
 from sklearn.svm import SVC
 from sklearn.metrics import make_scorer
+from sklearn.model_selection import RandomizedSearchCV
+
 
 #integrate other kernel for non-linear!!!!
 #should i do feature selection in svm_analysis function after hyperparameter tunin?
@@ -16,7 +18,7 @@ def eval(y,X,clf,ax,legend_entry='my legendEntry'):
     recall = recall_score(y, y_pred, zero_division=1)
     f1 = f1_score(y, y_pred, zero_division=1)
     specificity = tn / (tn + fp)
-    fp_rates, tp_rates,_ = roc_curve(y, y_pred_proba) #hier fehlt bodenstrich
+    fp_rates, tp_rates,_ = roc_curve(y, y_pred_proba) #hier fehlte  bodenstrich
 
     roc_auc = auc(fp_rates,tp_rates)
     ax.plot(fp_rates, tp_rates, label=f'Classifier fold {legend_entry} ')
@@ -26,7 +28,8 @@ def hypertuning(X,y,param_grid,model,cv):
     scoring = {'accuracy': 'accuracy', 'precision': make_scorer(precision_score),
                'recall': make_scorer(recall_score), 'f1': make_scorer(f1_score)}
 
-    clf_GS = GridSearchCV(estimator=model, param_grid=param_grid, scoring=scoring, refit='accuracy', cv=cv, verbose=1)
+    #clf_GS = GridSearchCV(estimator=model, param_grid=param_grid, scoring=scoring, refit='accuracy', cv=cv, verbose=1)
+    clf_GS = RandomizedSearchCV(estimator=model, param_distributions=param_grid, scoring=scoring, refit='accuracy', cv=cv, n_iter=5, n_jobs=-1, verbose=1)
     clf_GS.fit(X, y)
     # nachher hyptertuning().etc nehmen
     #gibt den besten estimator an --> z.B. um y_prediction zu bekommen hyptertuning(...).predict(X) angeben
@@ -82,7 +85,8 @@ def svm_analysis(data,random_state=42):
 
     #non-linear
     for kernel in kernels:
-        param_grid = {'kernel': [kernel], 'C': [0.1, 1, 10, 100, 1000], 'gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1]}
+        #param_grid = {'kernel': [kernel], 'C': [0.1, 1, 10, 100, 1000], 'gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1]} zu viel
+        param_grid = {'kernel': [kernel], 'C': [0.1, 1, 10], 'gamma': ['scale', 'auto']}
 
         nonlinear_performance = everything(data, SVC(probability=True), param_grid, random_state, ax,tune_hyperparameters=True)
         nonlinear_performance['kernel'] = kernel
