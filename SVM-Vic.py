@@ -116,10 +116,22 @@ def svm_analysis(data, random_state=42):
     return performance
 #do gare seugs (mar alk tobac) ibnfluence or corraleta with futru substance abouse disorder
 
+# Load and clean your dataset
 data = pd.read_csv('drug-use-health/data_new.csv', index_col=0)
-cleaned_data = cleaning(data)
-filtered_data = rough_filtering(cleaned_data)
-filtered_data.dropna(inplace=True)
+data = cleaning(data)
+data = rough_filtering(data)
+data.dropna(inplace=True)
 
-performance = svm_analysis(filtered_data)
+# Identify categorical, ordinal, and binary features
+ordinal = []
+binary = []
+categorical = data.select_dtypes(include=['object', 'category']).columns.tolist()
+for col in categorical:
+    if data[col].cat.ordered:
+        ordinal.append(col)
+    else:
+        binary.append(col)
+binary.remove('UDPYIEM')
+
+performance = svm_analysis(data)
 print(performance)
