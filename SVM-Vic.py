@@ -29,7 +29,9 @@ def eval(y, X, clf, ax_roc, ax_cm, legend_entry='my legendEntry'):
     ax_roc.legend(loc='best')
 
     # Plot confusion matrix
-    ConfusionMatrixDisplay.from_predictions(y, y_pred, ax=ax_cm)
+    cm = confusion_matrix(y, y_pred)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot(ax=ax_cm, cmap='Blues')
     ax_cm.set_title(f'Confusion Matrix ({legend_entry})')
 
     return [accuracy, precision, recall, specificity, f1, roc_auc]
@@ -126,10 +128,20 @@ def svm_analysis(data, random_state=42):
     fig_cm.savefig('figures/confusion_matrices_svm.png')
     plt.show()
 
-    return performance
-#Do Gateway Drugs (Marjuhaha, Alcohol, Tobaco) correlate with future substance abuse disorder
-# Load and clean your dataset
+    # Determine the best kernel based on mean performance metrics across all folds
+    mean_performance = performance.drop(columns=['clf']).groupby('kernel').mean().reset_index()
+    best_kernel = mean_performance.loc[mean_performance['accuracy'].idxmax()]
 
+    print(f"Best Kernel: {best_kernel['kernel']}")
+    print(mean_performance)
+
+    return performance, best_kernel
+
+#Do Gateway Drugs (Marjuhaha, Alcohol, Tobaco) correlate with future substance abuse disorder
+
+
+
+# Load and clean dataset
 data = pd.read_csv('drug-use-health/data_new.csv', index_col=0)
 data = cleaning(data)
 data = rough_filtering(data)
@@ -146,5 +158,7 @@ for col in categorical:
         binary.append(col)
 binary.remove('UDPYIEM')
 
-performance = svm_analysis(data)
+performance, best_kernel = svm_analysis(data)
 print(performance)
+print(f"Best Kernel: {best_kernel['kernel']}")
+performance.to_csv('performance_SVM.csv', index=False)
