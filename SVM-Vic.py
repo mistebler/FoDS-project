@@ -65,6 +65,10 @@ def everything(data, model, param_grid, random, axs_roc, axs_cm, kernel_name, tu
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
 
+        # Cast columns to float before scaling
+        X_train.loc[:, num_cols] = X_train.loc[:, num_cols].astype(float)
+        X_test.loc[:, num_cols] = X_test.loc[:, num_cols].astype(float)
+
         undersampler = RandomUnderSampler(random_state=42)
         X_train_resampled, y_train_resampled = undersampler.fit_resample(X_train, y_train)
 
@@ -76,10 +80,13 @@ def everything(data, model, param_grid, random, axs_roc, axs_cm, kernel_name, tu
         if tune_hyperparameters:
             model = hypertuning(X_train_resampled, y_train_resampled, param_grid, model, cv=splits)
 
-        model.fit(X_train, y_train)
+        model.fit(X_train_resampled, y_train_resampled)
+
+        ax_roc_fold = axs_roc[fold] if isinstance(axs_roc, np.ndarray) else axs_roc
+        ax_cm_fold = axs_cm[fold] if isinstance(axs_cm, np.ndarray) else axs_cm
 
         # Added kernel name to legend entry
-        fold_metrics = eval(y_test, X_test, model, axs_roc[fold], axs_cm[fold], legend_entry=f'{kernel_name} Fold {fold + 1}')
+        fold_metrics = eval(y_test, X_test, model, ax_roc_fold, ax_cm_fold, legend_entry=f'{kernel_name} Fold {fold + 1}')
 
         fold_performance = pd.DataFrame([{'fold': fold, 'clf': str(model), 'accuracy': fold_metrics[0], 'precision': fold_metrics[1],
                                           'recall': fold_metrics[2], 'specificity': fold_metrics[3], 'F1': fold_metrics[4], 'roc_auc': fold_metrics[5]}])
@@ -93,8 +100,10 @@ def svm_analysis(data, random_state=42):
     kernels = ['linear', 'rbf', 'poly', 'sigmoid']  # List of kernels
     performance = pd.DataFrame()
 
-    fig_roc, axs_roc = plt.subplots(len(kernels), splits, figsize=(20, 15))
-    fig_cm, axs_cm = plt.subplots(len(kernels), splits, figsize=(20, 15))
+    fig_roc, axs_roc = plt.subplots(1, splits, figsize=(20, 5))
+    fig_cm, axs_cm = plt.subplots(1, splits, figsize=(20, 5))
+
+    best_kernel_performance = None  # Store performance metrics for the best kernel
 
     for row, kernel in enumerate(kernels):
         param_grid = None if kernel == 'linear' else {'kernel': [kernel], 'C': [0.1, 1, 10], 'gamma': ['scale', 'auto']}
@@ -110,18 +119,32 @@ def svm_analysis(data, random_state=42):
         kernel_performance['kernel'] = kernel
         performance = pd.concat([performance, kernel_performance], ignore_index=True)
 
-    for i, row in enumerate(axs_roc):
-        for j, ax in enumerate(row):
-            ax.set_xlabel('False Positive Rate')
-            ax.set_ylabel('True Positive Rate')
-            ax.set_title(f'{kernels[i]} Kernel - Fold {j + 1}')
+        # If the current kernel is the best one, store its performance metrics
+        if kernel == mean_performance['kernel'].iloc[0]:
+            best_kernel_performance = kernel_performance
+
+    for i, ax in enumerate(axs_roc):
+        ax.set_xlabel('False Positive Rate')
+        ax.set_ylabel('True Positive Rate')
+        ax.set_title(f'{best_kernel_performance["kernel"].iloc[0]} Kernel - Fold {i + 1}')
+        fp_rates = best_kernel_performance.loc[i, 'fp_rates']
+        tp_rates = best_kernel_performance.loc[i, 'tp_rates']
+        ax.plot(fp_rates, tp_rates, label=f'{best_kernel_performance["kernel"].iloc[0]} (AUC = {best_kernel_performance["roc_auc"].iloc[0]:.2f})')
+        ax.plot([0, 1], [0, 1], color='r', ls='--', label='Random Classifier')
+        ax.legend(loc='best')
+
+    for i, ax in enumerate(axs_cm):
+        ax.set_title(f'Confusion Matrix ({best_kernel_performance["kernel"].iloc[0]} Kernel - Fold {i + 1})')
+        cm = best_kernel_performance.loc[i, 'confusion_matrix']
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+        disp.plot(ax=ax, cmap='Blues')
 
     plt.tight_layout()
-    plt.savefig('figures/roc_curve_svm.png')
+    plt.savefig('figures/roc_curve_best_kernel.png')
     plt.show()
 
-    fig_cm.tight_layout()
-    fig_cm.savefig('figures/confusion_matrices_svm.png')
+    plt.tight_layout()
+    plt.savefig('figures/confusion_matrices_best_kernel.png')
     plt.show()
 
     # Determine the best kernel based on mean performance metrics across all folds
@@ -131,11 +154,7 @@ def svm_analysis(data, random_state=42):
     print(f"Best Kernel: {best_kernel['kernel']}")
     print(mean_performance)
 
-    return performance, best_kernel
-
-#Do Gateway Drugs (Marjuhaha, Alcohol, Tobaco) correlate with future substance abuse disorder
-
-
+    return performance, mean_performance, best_kernel_performance
 
 # Load and clean dataset
 data = pd.read_csv('drug-use-health/data_new.csv', index_col=0)
@@ -143,18 +162,14 @@ data = cleaning(data)
 data = rough_filtering(data)
 data.dropna(inplace=True)
 
-# Identify categorical, ordinal, and binary features
-ordinal = []
-binary = []
-categorical = data.select_dtypes(include=['object', 'category']).columns.tolist()
-for col in categorical:
-    if data[col].cat.ordered:
-        ordinal.append(col)
-    else:
-        binary.append(col)
-binary.remove('UDPYIEM')
+# Perform SVM analysis
+performance, mean_performance, best_kernel_performance = svm_analysis(data)
 
-performance, best_kernel = svm_analysis(data)
+# Print performance tables
+print("Performance Table:")
 print(performance)
-print(f"Best Kernel: {best_kernel['kernel']}")
-performance.to_csv('performance_SVM.csv', index=False)
+print("\nMean Performance Table:")
+print(mean_performance)
+
+# Save performance table to CSV
+best_kernel_performance.to_csv('performance_SVM.csv', index=False)
