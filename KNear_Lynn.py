@@ -9,7 +9,12 @@ from sklearn.feature_selection import SelectKBest, f_classif, chi2, mutual_info_
 import matplotlib.pyplot as plt
 from Feature_Selection_2 import *
 from imblearn.under_sampling import RandomUnderSampler
+from imblearn.over_sampling import RandomOverSampler
 import seaborn as sns
+from imblearn.combine import SMOTEENN
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import EditedNearestNeighbours
+
 
 # Load and clean your dataset
 data = pd.read_csv('drug-use-health/data_new.csv', index_col=0)
@@ -91,28 +96,42 @@ def everything(data, model, param, random, tune_hyperparameters=True):
     X = data_enc.drop('UDPYIEM', axis=1)
     y = data['UDPYIEM']
 
-    splits = 5
+    splits = 2
     cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=random)
     fold = 0
 
     fig, axs = plt.subplots(1, splits, figsize=(15, 5))
     model_names = []
-    undersampler = RandomUnderSampler(random_state=42)
-    X, y = undersampler.fit_resample(X, y)
+
     X.loc[:, num_cols] = X.loc[:, num_cols].astype(float)
 
     confusion_matrices = []  # To store confusion matrices
 
     for train_index, test_index in cv.split(X, y):
+
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
 
+        print("\nClass Distribution Before Undersampling:")
+        print(pd.Series(y_train).value_counts())
+
+        #smote = SMOTE(random_state=42)
+        #X_train, y_train = smote.fit_resample(X_train, y_train)
+        #X_train = X_train.astype(float)
+        rus = RandomUnderSampler(random_state=42)
+        X_train_resampled, y_train_resampled = rus.fit_resample(X_train, y_train)
+
+        print("\nClass Distribution After Undersampling:")
+        print(pd.Series(y_train_resampled).value_counts())
+
         scaler = StandardScaler()
 
-        X_train.loc[:, num_cols] = scaler.fit_transform(X_train.loc[:, num_cols])
+        X_train_resampled.loc[:, num_cols] = scaler.fit_transform(X_train_resampled.loc[:, num_cols])
         X_test.loc[:, num_cols] = scaler.transform(X_test.loc[:, num_cols])
 
-        best_model = hypertuning(X_train, y_train, param, model, cv=splits)
+
+
+        best_model = hypertuning(X_train_resampled, y_train_resampled, param, model, cv=splits)
 
         metrics, cm = eval(y_test, X_test, best_model, axs[fold], fold_num=fold, legend_entry=f'fold {fold + 1}')
         performance.loc[fold] = [fold, best_model] + list(metrics)
