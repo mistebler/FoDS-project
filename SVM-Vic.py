@@ -60,25 +60,21 @@ def everything(data, model, param_grid, random, axs_roc, axs_cm, kernel_name, tu
     splits = 5
     cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=random)
     fold = 0
-    undersampler = RandomUnderSampler(random_state=42)
-    X, y = undersampler.fit_resample(X, y)
+
     for train_index, test_index in cv.split(X, y):
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
 
-
-
-        # Cast columns to float before scaling
-        X_train.loc[:, num_cols] = X_train.loc[:, num_cols].astype(float)
-        X_test.loc[:, num_cols] = X_test.loc[:, num_cols].astype(float)
+        undersampler = RandomUnderSampler(random_state=42)
+        X_train_resampled, y_train_resampled = undersampler.fit_resample(X_train, y_train)
 
         scaler = StandardScaler()
-        X_train[num_cols] = scaler.fit_transform(X_train[num_cols])
-        X_test[num_cols] = scaler.transform(X_test[num_cols])
+        X_train_resampled.loc[:, num_cols] = scaler.fit_transform(X_train_resampled.loc[:, num_cols])
+        X_test.loc[:, num_cols] = scaler.transform(X_test.loc[:, num_cols])
 
         # Hyperparameter tuning
         if tune_hyperparameters:
-            model = hypertuning(X_train, y_train, param_grid, model, cv=splits)
+            model = hypertuning(X_train_resampled, y_train_resampled, param_grid, model, cv=splits)
 
         model.fit(X_train, y_train)
 
