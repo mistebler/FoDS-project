@@ -202,8 +202,7 @@ def everything(data, model,param, random,what):
     cate_cols.remove('UDPYIEM')
     X = data.drop('UDPYIEM',axis=1)
     y= data.UDPYIEM
-    undersampler = RandomUnderSampler(random_state=42)
-    X, y = undersampler.fit_resample(X, y)
+
     ordinal = []
     nominal = []
     for col in cate_cols:
@@ -227,6 +226,8 @@ def everything(data, model,param, random,what):
     for train_index, test_index in cv.split(X,y):
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        undersampler = RandomUnderSampler(random_state=random)
+        X_train, y_train = undersampler.fit_resample(X_train, y_train)
         X_train_copy = X_train.copy()
         X_test_copy = X_test.copy()
         num_cols_test = X_test.select_dtypes(include=['Int64', 'float64']).columns.tolist()
@@ -343,7 +344,9 @@ def everything(data, model,param, random,what):
         if model_name == 'KNearest':
             plt.savefig('figures/roc_curve_KN.png')
         #eure model_names :) ...
-        ##if model_name == ...:
+        if model_name == 'SVM':
+            plt.savefig('figures/roc_curve_SVM.png')
+
 
         ##if model_name == ...:
         fig_cm, axs_cm = plt.subplots(1, splits, figsize=(15, 5))
@@ -359,7 +362,8 @@ def everything(data, model,param, random,what):
         if model_name == 'KNearest':
             plt.savefig('figures/confusion_matrices_knearest.png')
         #eure model_names :) ...
-        ##if model_name == ...:
+        if model_name == 'SVM':
+            plt.savefig('figures/confusion_matrices_SVM.png')
 
         ##if model_name == ...:
         for item in metrics:
