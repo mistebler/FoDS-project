@@ -78,6 +78,7 @@ data = cleaning(data)
 
 #Grobe Feature selection (meisten Nan values)
 plt.figure(figsize=(14,6))
+
 plt.bar(data.isna().sum().sort_values(ascending=False).index, data.isna().sum().sort_values(ascending=False)/data.shape[0])
 plt.xticks(data.isna().sum().sort_values(ascending=False).index, rotation=90)
 plt.ylabel('% missing values')
