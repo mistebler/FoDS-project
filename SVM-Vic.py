@@ -47,7 +47,7 @@ def everything(data, model, param_grid, random, kernel_name, tune_hyperparameter
 
     splits = 5
     cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=random)
-    fold = 0
+    fold = 1
 
     if plot:
         fig_roc, axs_roc = plt.subplots(1, splits, figsize=(25, 5))
@@ -75,10 +75,11 @@ def everything(data, model, param_grid, random, kernel_name, tune_hyperparameter
         model.fit(X_train_resampled, y_train_resampled)
 
         if plot:
-            fold_metrics, cm = eval(y_test, X_test, model, axs_roc[fold], fold, legend_entry=f'{kernel_name} Fold {fold + 1}')
+            fold_metrics, cm = eval(y_test, X_test, model, axs_roc[fold - 1], fold,
+                                    legend_entry=f'{kernel_name} Fold {fold}')
             disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-            disp.plot(ax=axs_cm[fold], cmap='Blues')
-            axs_cm[fold].set_title(f'Confusion Matrix (Fold {fold + 1})')
+            disp.plot(ax=axs_cm[fold - 1], cmap='Blues')
+            axs_cm[fold - 1].set_title(f'Confusion Matrix (Fold {fold})')
         else:
             fold_metrics, _ = eval(y_test, X_test, model, None, fold, legend_entry=f'{kernel_name} Fold {fold + 1}')
 
