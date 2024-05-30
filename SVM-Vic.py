@@ -101,10 +101,10 @@ def everything(data, model, param_grid, random, kernel_name, tune_hyperparameter
         fig_cm.tight_layout(rect=[0, 0, 1, 0.95])
 
 
-        fig_roc.savefig(f'figures/roc_curve_svm{kernel_name}.png')
+        fig_roc.savefig(f'figures/roc_curve_svm_{kernel_name}.png')
         plt.show()
 
-        fig_cm.savefig(f'figures/confusion_matrix_{kernel_name}.png')
+        fig_cm.savefig(f'figures/confusion_matrix_svm_{kernel_name}.png')
         plt.show()
 
     return performance
