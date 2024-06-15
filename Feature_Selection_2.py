@@ -11,7 +11,7 @@ import scipy.stats as sts
 from sklearn.compose import ColumnTransformer
 from sklearn.metrics import roc_curve, auc, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix,  precision_recall_curve, make_scorer
 from imblearn.under_sampling import RandomUnderSampler
-
+from sklearn.svm import SVC
 data = pd.read_csv('drug-use-health/data_new.csv', index_col=0)
 def add_identity(axes, *line_args, **line_kwargs):
     identity, = axes.plot([], [], *line_args, **line_kwargs)
@@ -271,38 +271,50 @@ def everything(data, model,param, random,what):
         #grobe Feature Selection (Univariate feature selection --> jztmal die 45 besten auswählen --> da in allen 5 folds ungefähr die gleichen gut
         X_train_UVFS, UVFS_Selector = selection(X_train,y_train,mutual_info_classif,45,'auswertung',axs,title='entry')
         clf = model
-        #hier embedded Feature selection
-        #sel_ = SelectFromModel(clf).set_output(transform="pandas")
-        sel_ = SelectFromModel(clf)
-        sel_.fit(X_train_UVFS,y_train)
-        clf.fit(X_train_UVFS,y_train)
+        if 'SVC' not in str(model):
+            #hier embedded Feature selection
+            #sel_ = SelectFromModel(clf).set_output(transform="pandas")
+            sel_ = SelectFromModel(clf)
+            sel_.fit(X_train_UVFS,y_train)
+            clf.fit(X_train_UVFS,y_train)
 
-        #hier wenn ich Logistic Regression mache dass es die Feature importance (normalized) abspeichert um nachher ein barplot damit zu machen um die besten zu sehen
-        LR = 'LogisticRegression'
-        which_model = str(model)
-        if LR in which_model:
-            #this_LR_coefs = pd.DataFrame(zip(list(UVFS_Selector.get_feature_names_out()), np.transpose(clf.coef_[0])),columns=['features','coef'])
-            #LR_normcoef.loc[list(UVFS_Selector.get_feature_names_out()),fold] = this_LR_coefs['coef'].values/this_LR_coefs['coef'].abs().sum()
-            this_LR_coefs = pd.DataFrame(zip(X_train_UVFS.columns, np.transpose(clf.coef_[0])),columns=['features', 'coef'])
-            LR_normcoef.loc[X_train_UVFS.columns, fold] = this_LR_coefs['coef'].values / this_LR_coefs['coef'].abs().sum()
-        #sel_ = SelectFromModel(clf, prefit=True).set_output(transform="pandas")
-        #sel_.fit(X_train_UVFS,y_train)
 
-        X_train_L1 = sel_.transform(X_train_UVFS)
+            #hier wenn ich Logistic Regression mache dass es die Feature importance (normalized) abspeichert um nachher ein barplot damit zu machen um die besten zu sehen
+            LR = 'LogisticRegression'
+            which_model = str(model)
+            if LR in which_model:
+                #this_LR_coefs = pd.DataFrame(zip(list(UVFS_Selector.get_feature_names_out()), np.transpose(clf.coef_[0])),columns=['features','coef'])
+                #LR_normcoef.loc[list(UVFS_Selector.get_feature_names_out()),fold] = this_LR_coefs['coef'].values/this_LR_coefs['coef'].abs().sum()
+                this_LR_coefs = pd.DataFrame(zip(X_train_UVFS.columns, np.transpose(clf.coef_[0])),columns=['features', 'coef'])
+                LR_normcoef.loc[X_train_UVFS.columns, fold] = this_LR_coefs['coef'].values / this_LR_coefs['coef'].abs().sum()
+            #sel_ = SelectFromModel(clf, prefit=True).set_output(transform="pandas")
+            #sel_.fit(X_train_UVFS,y_train)
 
-        X_test_UVFS = UVFS_Selector.transform(X_test)
-        selected_features.loc[fold, list(sel_.get_feature_names_out())] += 1
-        #selected_features.loc[fold, X_train_L1.columns] += 1
-        clf_L1 = model
-        clf_L1.fit(X_train_L1,y_train)
-        X_test_L1 = sel_.transform(X_test_UVFS)
+            X_train_L1 = sel_.transform(X_train_UVFS)
 
-        #Performance evaluation
-        eval_metrics, cm = eval(y_test,X_test_L1,clf_L1,axs2[fold],legend_entry=str(fold+1),model_name = model_name)
-        performance.loc[len(performance),:] = [fold]+eval_metrics
-        confusion_matrices.append(cm)
+            X_test_UVFS = UVFS_Selector.transform(X_test)
+            selected_features.loc[fold, list(sel_.get_feature_names_out())] += 1
+            #selected_features.loc[fold, X_train_L1.columns] += 1
+            clf_L1 = model
+            clf_L1.fit(X_train_L1,y_train)
+            X_test_L1 = sel_.transform(X_test_UVFS)
 
-        fold+=1
+            #Performance evaluation
+            eval_metrics, cm = eval(y_test,X_test_L1,clf_L1,axs2[fold],legend_entry=str(fold+1),model_name = model_name)
+            performance.loc[len(performance),:] = [fold]+eval_metrics
+            confusion_matrices.append(cm)
+
+            fold+=1
+        else:
+            clf = model.fit(X_train, y_train)
+            y_pred = clf.predict(X_test)
+
+            # Performance Evaluation
+            eval_metrics, cm = eval(y_test, X_test, clf, axs2[fold],legend_entry=str(fold+1),model_name = model_name)
+            performance.loc[len(performance)] = [fold] + eval_metrics
+            confusion_matrices.append(cm)
+
+            fold += 1
     if what == 'hyperparameter':
         return tuning.value_counts().head(1)
     if what == 'feature selection':
@@ -373,6 +385,7 @@ def everything(data, model,param, random,what):
 #embedded methods für feature selection abhängig von der model wahl --> z.b. bei logistic regression lasso, ridge möglich; bei Random Forest feature importance (alles durch die Funktion SelectFromModel(model([hypterparameters().best_params_]])) = irgendwas --> das dann .fit etc
 #SelectFromModel() kann bei allen estimators verwendet werden welche attribute coef_ oder feature_importances_ hat
 parameter ={'C':[0.001,0.01,0.1,1,10]}
+
 #everything(data,LogisticRegression(class_weight='balanced',max_iter=1000),parameter,1,'feature selection')
 #Hyperparameter tuning:
 #print(everything(data,LogisticRegression(class_weight='balanced',max_iter=1000),parameter,1, 'hyperparameter'))
@@ -381,4 +394,11 @@ parameter ={'C':[0.001,0.01,0.1,1,10]}
 #everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'feature importance LR')
 #everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'selected Features')
 everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'evaluation')
+
+
+svm_parameters = {'C': [0.001, 0.01, 0.1, 1, 10], 'kernel': ['linear', 'rbf', 'poly']}
+#print(everything(data, SVC(probability=True, class_weight='balanced'), svm_parameters, 1, 'hyperparameter').head(1))
+#best: C = 0.01, linear, fold 4
+parameter = {'C': [0.01], 'kernel': ['linear']}
+everything(data, SVC(probability=True, class_weight='balanced'), parameter, 1, 'evaluation')
 
