@@ -384,7 +384,7 @@ def everything(data, model,param, random,what):
 #bevor implementieren schauen welche parameter auswählen damit man die eingeben kann
 #embedded methods für feature selection abhängig von der model wahl --> z.b. bei logistic regression lasso, ridge möglich; bei Random Forest feature importance (alles durch die Funktion SelectFromModel(model([hypterparameters().best_params_]])) = irgendwas --> das dann .fit etc
 #SelectFromModel() kann bei allen estimators verwendet werden welche attribute coef_ oder feature_importances_ hat
-parameter ={'C':[0.001,0.01,0.1,1,10]}
+#parameter ={'C':[0.001,0.01,0.1,1,10]}
 
 #everything(data,LogisticRegression(class_weight='balanced',max_iter=1000),parameter,1,'feature selection')
 #Hyperparameter tuning:
@@ -393,12 +393,12 @@ parameter ={'C':[0.001,0.01,0.1,1,10]}
 #everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'feature selection')
 #everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'feature importance LR')
 #everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'selected Features')
-everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'evaluation')
+#everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'evaluation')
 
 
-svm_parameters = {'C': [0.001, 0.01, 0.1, 1, 10], 'kernel': ['linear', 'rbf', 'poly']}
+#svm_parameters = {'C': [0.001, 0.01, 0.1, 1, 10], 'kernel': ['linear', 'rbf', 'poly']}
 #print(everything(data, SVC(probability=True, class_weight='balanced'), svm_parameters, 1, 'hyperparameter').head(1))
 #best: C = 0.01, linear, fold 4
-parameter = {'C': [0.01], 'kernel': ['linear']}
-everything(data, SVC(probability=True, class_weight='balanced'), parameter, 1, 'evaluation')
+#parameter = {'C': [0.01], 'kernel': ['linear']}
+#everything(data, SVC(probability=True, class_weight='balanced'), parameter, 1, 'evaluation')
 
