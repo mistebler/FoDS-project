@@ -96,7 +96,7 @@ def everything(data, model, param, random, tune_hyperparameters=True):
     X = data_enc.drop('UDPYIEM', axis=1)
     y = data['UDPYIEM']
 
-    splits = 2
+    splits = 5
     cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=random)
     fold = 0
 
@@ -120,6 +120,15 @@ def everything(data, model, param, random, tune_hyperparameters=True):
         #X_train = X_train.astype(float)
         rus = RandomUnderSampler(random_state=42)
         X_train_resampled, y_train_resampled = rus.fit_resample(X_train, y_train)
+
+        # Feature selection
+        selected_features = selection(X_train_resampled, y_train_resampled, mutual_info_classif, 45, "features")
+        X_train_resampled = X_train_resampled[selected_features]
+        X_test = X_test[selected_features]
+
+        print(selected_features)
+
+        num_cols = X_train_resampled.select_dtypes(include=['int64', 'float64']).columns.tolist()
 
         print("\nClass Distribution After Undersampling:")
         print(pd.Series(y_train_resampled).value_counts())
@@ -171,6 +180,18 @@ def knn_analysis(data, random_state=42):
     knn = KNeighborsClassifier()
     performance = everything(data=data, model=knn, param=param_grid, random=random_state)
     return performance
+def selection(X_train, y_train, how, n, what):
+    UVFS_Selector = SelectKBest(score_func=how, k=n)
+    X_selected = UVFS_Selector.fit_transform(X_train, y_train)
+    if what == 'scores':
+        return UVFS_Selector.scores_
+    elif what == 'features':
+        return UVFS_Selector.get_feature_names_out()
+    elif what == 'mutual_info':
+        mutual_info = mutual_info_classif(X_train, y_train)
+        mutual_info = pd.Series(mutual_info, index=X_train.columns).sort_values(ascending=False)
+        return mutual_info
+
 
 
 # Run KNN analysis
