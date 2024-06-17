@@ -10,7 +10,8 @@ from sklearn.feature_selection import chi2, f_classif, SelectKBest, mutual_info_
 import scipy.stats as sts
 from sklearn.compose import ColumnTransformer
 from sklearn.metrics import roc_curve, auc, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix,  precision_recall_curve, make_scorer
-
+from imblearn.under_sampling import RandomUnderSampler
+from sklearn.svm import SVC
 data = pd.read_csv('drug-use-health/data_new.csv', index_col=0)
 def add_identity(axes, *line_args, **line_kwargs):
     identity, = axes.plot([], [], *line_args, **line_kwargs)
@@ -77,6 +78,7 @@ data = cleaning(data)
 
 #Grobe Feature selection (meisten Nan values)
 plt.figure(figsize=(14,6))
+
 plt.bar(data.isna().sum().sort_values(ascending=False).index, data.isna().sum().sort_values(ascending=False)/data.shape[0])
 plt.xticks(data.isna().sum().sort_values(ascending=False).index, rotation=90)
 plt.ylabel('% missing values')
@@ -90,6 +92,7 @@ def rough_filtering(df):
     df.drop(['IRSMKLSSTRY','IRCGRAGE','IRCIGAGE','BLNTAGE','IRMJAGE','IRCDUAGE'],axis=1,inplace=True)
     #Alter rausnehmen --> befindet sich in neuen Features als ordinal data
     df.drop(['IRTOBAGE', 'IRMJALLGAGE', 'IRALCAGE','ILLICITAGE'], axis=1, inplace=True)
+    df.dropna(inplace=True) #war vorher unten falls ihr es nicht selber implementiert habt dann hatte es noch missing values in eurem Datenset (sorry)
     return df
 
 
@@ -100,7 +103,7 @@ data = rough_filtering(data)
 
 #print(data.isna().sum().sort_values(ascending=False)/data.shape[0])
 
-data.dropna(inplace=True)
+#data.dropna(inplace=True)
 
 ordinal = []
 binary = []
@@ -113,79 +116,34 @@ for col in categorical:
 binary.remove('UDPYIEM')
 #onehotencoding nur für nominal data?
 #sonst ordinalencoder?
-"""
-num_cols = data.select_dtypes(include=['Int64','float64']).columns.tolist()
-#print(num_cols)
-cate_cols = data.select_dtypes(include=['object','category']).columns.tolist()
-cate_cols.remove('UDPYIEM')
-#print(cate_cols)
-X = data.drop('UDPYIEM',axis=1)
-y = data['UDPYIEM']
-statistic = pd.DataFrame(index = ['F-Statistic','p-value','Chi2 statistic','Ranksum'],columns = X.columns)
-normal = []
-alpha = 0.05 / data.shape[1]
-for col in num_cols:
-    group1 = X.loc[y.values== 1, col]
-    group2 = X.loc[y.values== 0, col]
-    p_val1 = sts.normaltest(group1).pvalue
-    p_val2 = sts.normaltest(group2).pvalue
-    if p_val1 < alpha or p_val2 < alpha:
-        statistic.loc['Ranksum',col] = sts.ranksums(group1, group2).statistic
-        statistic.loc['p-value',col] = sts.ranksums(group1, group2).pvalue
-        #nicht normal --> ranksum test
-    else:
-        normal.append(col)
 
-if len(normal) != 0:
-    f_statistic, p_values = f_classif(X[normal],y)
-    statistic.loc['F-Statistic',normal] = f_statistic
-    statistic.loc['p-value',normal] = p_values
-chi2_stats, p_values = chi2(X[cate_cols],y)
-statistic.loc['Chi2 statistic',cate_cols] = chi2_stats
-statistic.loc['p-value', cate_cols] = p_values
-print(statistic.loc['p-value',:].sort_values(ascending=False))
-
-plt.figure(figsize=(9,4))
-plt.bar(statistic.loc['p-value',:].sort_values(ascending=False).index, statistic.loc['p-value',:].sort_values(ascending=False))
-plt.xticks(statistic.loc['p-value',:].sort_values(ascending=False).index, rotation=90)
-plt.ylabel('p-value')
-plt.xlabel('Features')
-plt.title('p-values of the Features \n(for (rough) feature filtering)')
-plt.axhline(alpha, linestyle='--', color='r', label='Significance level')
-plt.legend()
-plt.tight_layout()
-plt.savefig('figures/p-value-distribution.png')
-pvalues = statistic.loc['p-value',:]
-"""
 tests = ['f_classif', 'chi2', 'mututal_info_classif']
 #accuracy direkt rausnehmen
-metrics = {'precision':[], 'recall':[], 'specificity':[],'f1':[], 'roc_auc':[]}
-def eval(y,X,clf,ax,legend_entry='my legendEntry'):
+#metrics = {'accuracy':[],'precision':[], 'recall':[], 'specificity':[],'f1':[], 'roc_auc':[]}
+def eval(y,X,clf,ax,legend_entry='my legendEntry', model_name = 'MyModel'):
     y_pred = clf.predict(X)
     y_pred_proba = clf.predict_proba(X)[:,1]
     tn, fp, fn, tp = confusion_matrix(y, y_pred).ravel()
 
     #accuracy prolly useneh --> unbalanced also wird eh nicht viel aussagen
-    #accuracy = accuracy_score(y, y_pred)
+    accuracy = accuracy_score(y, y_pred)
     precision = precision_score(y,y_pred)
     recall = recall_score(y,y_pred)
     f1 = f1_score(y,y_pred)
     specificity = tn / (tn + fp)
-    fp_rates, tp_rates = roc_curve(y, y_pred_proba)
+    fp_rates, tp_rates, _ = roc_curve(y, y_pred_proba)
 
     roc_auc = auc(fp_rates,tp_rates)
-    ax.plot(fp_rates, tp_rates, label=f'Classifier fold {legend_entry} ')
-    return [precision,recall,specificity,f1,roc_auc]
+    ax.plot(fp_rates, tp_rates)
+    ax.set_title(f'ROC curve for fold {legend_entry}\n({model_name})')
+    return [accuracy,precision,recall,specificity,f1,roc_auc], confusion_matrix(y, y_pred)
 
 def selection(X_train,y_train,how,n,what,ax, title='entry'):
     #um von allen den score zu erhalten eifach n= 'all' setzen
     #how möglichkeiten: [chi2,f_classif,mutual_info_classif] also oben bei tests = ...
-    UVFS_Selector = SelectKBest(score_func=how, k=n)
+    UVFS_Selector = SelectKBest(score_func=how, k=n).set_output(transform="pandas")
     X_selected = UVFS_Selector.fit_transform(X_train,y_train)
-    #if what == 'test':
-        # in vorlesung zu Categorical output und numerical input kendall benutzen, wie? --> Zu kompliziert
-        # vorallem wären hier scores wichtig, welchen test für nicht normalverteilte?
-        #return UVFS_Selector
+
     if what == 'auswertung':
         return X_selected, UVFS_Selector
     #wenn what == mututal info nicht besten direkt suchen sondern alle werden bewertet --> evt einfacher zum nachher plotten
@@ -205,7 +163,6 @@ def selection(X_train,y_train,how,n,what,ax, title='entry'):
         #ax.bar(UVFS_Selector.feature_names_in_ , UVFS_Selector.scores_)
         ax.bar(feature_sel.index, feature_sel)
         ax.set_title(f'Feature scores for fold {title}')
-        #ax.set_xticks(np.arange(len(UVFS_Selector.feature_names_in_)), UVFS_Selector.feature_names_in_, rotation=90)
         ax.set_xticks(np.arange(len(UVFS_Selector.feature_names_in_)),feature_sel.index, rotation=90)
         ax.set_xlabel('Features')
         ax.set_ylabel('Scores')
@@ -239,13 +196,14 @@ def hyper(X,y,model,parameters,cv):
     #return [clf_GS.best_estimator_ , clf_GS.best_score_]
 
 def everything(data, model,param, random,what):
-    performance = pd.DataFrame(columns=['fold','clf','precision','recall',
-                                         'specificity','F1','roc_auc'])
+    metrics=['accuracy', 'precision', 'recall', 'specificity','F1', 'roc_auc']
+    performance = pd.DataFrame(columns=['fold','accuracy','precision','recall','specificity','F1','roc_auc'])
     num_cols = data.select_dtypes(include=['Int64','float64']).columns.tolist()
     cate_cols = data.select_dtypes(include=['object','category']).columns.tolist()
     cate_cols.remove('UDPYIEM')
     X = data.drop('UDPYIEM',axis=1)
     y= data.UDPYIEM
+
     ordinal = []
     nominal = []
     for col in cate_cols:
@@ -257,15 +215,20 @@ def everything(data, model,param, random,what):
     cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=random)
     fold = 0
     tuning = pd.DataFrame(columns=list(param.keys()),index=np.arange(splits))
+    model_name = str(input("Which Model used? "))
     #Figures für die Feature selection bilder
     fig,axs = plt.subplots(5,1,figsize=(30,25))
+    fig2, axs2 = plt.subplots(1,5,figsize=(16,10))
     zeros = np.zeros((splits,len(X.columns.tolist())),dtype=int)
     selected_features = pd.DataFrame(zeros, index=np.arange(splits),columns = X.columns)
+    confusion_matrices = []
     #aus Homework 5
     LR_normcoef = pd.DataFrame(index=X.columns,columns=np.arange(splits))
     for train_index, test_index in cv.split(X,y):
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        undersampler = RandomUnderSampler(random_state=random)
+        X_train, y_train = undersampler.fit_resample(X_train, y_train)
         X_train_copy = X_train.copy()
         X_test_copy = X_test.copy()
         num_cols_test = X_test.select_dtypes(include=['Int64', 'float64']).columns.tolist()
@@ -285,10 +248,15 @@ def everything(data, model,param, random,what):
         X_test = transformer.transform(X_test)
         all_columns_test = ordinal_test + num_cols_test
         X_test = pd.DataFrame(X_test, columns=all_columns_test, index=X_test_copy.index)
-        X_test = pd.concat([X_test,X_test_copy[nominal_test]])
+        X_test = pd.concat([X_test,X_test_copy[nominal_test]],axis=1)
+        #Da im test set nicht immer alle categories vorhanden sind gibt es im test set auch NaN values --> die muss man zuerst rausnehmen um das test set bezüglich der feature selection anpassen zu können(transform)
+        #print(X_test.isna().sum())
+        idxmissing= list(X_test.isna().any(axis=1).index[X_test.isna().any(axis=1).values])
+        y_test.drop(index=idxmissing,inplace=True)
+        X_test.dropna(axis=0, inplace=True)
+
         #hyperparameter welcher am besten passt finden und in tuning speichern --> am schluss schauen und according zu dem die Hyperparameter setzen:
         tuning.loc[fold,list(param.keys())] = list(map(hyper(X_train,y_train,model,param,5).best_estimator_.get_params().get, list(param.keys())))
-
         #feature selection (filter method)
 
         #bild welches für alle 5 folds die Feature scores zeigt --> anschauen und dann auswählen welche am besten sind
@@ -303,35 +271,50 @@ def everything(data, model,param, random,what):
         #grobe Feature Selection (Univariate feature selection --> jztmal die 45 besten auswählen --> da in allen 5 folds ungefähr die gleichen gut
         X_train_UVFS, UVFS_Selector = selection(X_train,y_train,mutual_info_classif,45,'auswertung',axs,title='entry')
         clf = model
-        clf.fit(X_train_UVFS,y_train)
-
-        #hier wenn ich Logistic Regression mache dass es die Feature importance (normalized) abspeichert um nachher ein barplot damit zu machen um die besten zu sehen
-        LR = 'LogisticRegression'
-        which_model = str(model)
-        if LR in which_model:
-            this_LR_coefs = pd.DataFrame(zip(list(UVFS_Selector.get_feature_names_out()), np.transpose(clf.coef_[0])),columns=['features','coef'])
-            LR_normcoef.loc[list(UVFS_Selector.get_feature_names_out()),fold] = this_LR_coefs['coef'].values/this_LR_coefs['coef'].abs().sum()
-        sel_ = SelectFromModel(clf, prefit=True)
-        sel_.fit(X_train_UVFS,y_train)
-        X_train_L1 = sel_.transform(X_train_UVFS)
-        clf.fit(X_train_L1,y_train)
-        #X_test_UVFS = UVFS_Selector.transform(X_test)
-        #sel_ = SelectFromModel(clf, prefit=True)
-        #selected_features.loc[fold, list(sel_.get_feature_names_out())] += 1
-
-        #X_train = sel_.transform(X_train_UVFS)
-        #X_test = sel_.transform(X_test_UVFS)
-
-        #eval_metrics = eval(y_train,X_train_UVFS,)
+        if 'SVC' not in str(model):
+            #hier embedded Feature selection
+            #sel_ = SelectFromModel(clf).set_output(transform="pandas")
+            sel_ = SelectFromModel(clf)
+            sel_.fit(X_train_UVFS,y_train)
+            clf.fit(X_train_UVFS,y_train)
 
 
+            #hier wenn ich Logistic Regression mache dass es die Feature importance (normalized) abspeichert um nachher ein barplot damit zu machen um die besten zu sehen
+            LR = 'LogisticRegression'
+            which_model = str(model)
+            if LR in which_model:
+                #this_LR_coefs = pd.DataFrame(zip(list(UVFS_Selector.get_feature_names_out()), np.transpose(clf.coef_[0])),columns=['features','coef'])
+                #LR_normcoef.loc[list(UVFS_Selector.get_feature_names_out()),fold] = this_LR_coefs['coef'].values/this_LR_coefs['coef'].abs().sum()
+                this_LR_coefs = pd.DataFrame(zip(X_train_UVFS.columns, np.transpose(clf.coef_[0])),columns=['features', 'coef'])
+                LR_normcoef.loc[X_train_UVFS.columns, fold] = this_LR_coefs['coef'].values / this_LR_coefs['coef'].abs().sum()
+            #sel_ = SelectFromModel(clf, prefit=True).set_output(transform="pandas")
+            #sel_.fit(X_train_UVFS,y_train)
 
+            X_train_L1 = sel_.transform(X_train_UVFS)
 
+            X_test_UVFS = UVFS_Selector.transform(X_test)
+            selected_features.loc[fold, list(sel_.get_feature_names_out())] += 1
+            #selected_features.loc[fold, X_train_L1.columns] += 1
+            clf_L1 = model
+            clf_L1.fit(X_train_L1,y_train)
+            X_test_L1 = sel_.transform(X_test_UVFS)
 
+            #Performance evaluation
+            eval_metrics, cm = eval(y_test,X_test_L1,clf_L1,axs2[fold],legend_entry=str(fold+1),model_name = model_name)
+            performance.loc[len(performance),:] = [fold]+eval_metrics
+            confusion_matrices.append(cm)
 
+            fold+=1
+        else:
+            clf = model.fit(X_train, y_train)
+            y_pred = clf.predict(X_test)
 
-        fold+=1
-        #what eingeben um vorher zu wissen welche Hyperparameter ihr verwenden wollt
+            # Performance Evaluation
+            eval_metrics, cm = eval(y_test, X_test, clf, axs2[fold],legend_entry=str(fold+1),model_name = model_name)
+            performance.loc[len(performance)] = [fold] + eval_metrics
+            confusion_matrices.append(cm)
+
+            fold += 1
     if what == 'hyperparameter':
         return tuning.value_counts().head(1)
     if what == 'feature selection':
@@ -351,14 +334,71 @@ def everything(data, model,param, random,what):
         plt.tight_layout()
         plt.savefig('figures/Feature_Importance_LR.png')
     if what == 'selected Features':
-        print(selected_features.sum(axis=1))
+        plt.figure(figsize=(16,9))
+        plt.style.use('ggplot')
+        plt.bar(selected_features.sum(axis=0).sort_values(ascending=False).index, selected_features.sum(axis=0).sort_values(ascending=False))
+        plt.xticks(np.arange(len(selected_features.sum(axis=0))), selected_features.sum(axis=0).sort_values(ascending=False).index, rotation=90)
+        plt.title('How often these Features were selected in the 5 Folds (with SelectFromModel())')
+        plt.xlabel('Features')
+        plt.ylabel('Count')
+        plt.tight_layout()
+        plt.savefig('figures/Feature_Counts.png')
+        #print(selected_features.sum(axis=0).sort_values(ascending=False))
+    if what == 'evaluation':
+        for i, ax in enumerate(axs2):
+            ax.set_xlabel('False Positive Rate')
+            ax.set_ylabel('True Positive Rate')
+            add_identity(ax, color='r', ls='--', label = 'random\nclassifier')
+            plt.legend(loc='best')
+
+        plt.tight_layout()
+        if model_name == 'Logistic Regression':
+            plt.savefig('figures/roc_curve_LR.png')
+        if model_name == 'KNearest':
+            plt.savefig('figures/roc_curve_KN.png')
+        #eure model_names :) ...
+        if model_name == 'SVM':
+            plt.savefig('figures/roc_curve_SVM.png')
+
+
+        ##if model_name == ...:
+        fig_cm, axs_cm = plt.subplots(1, splits, figsize=(15, 5))
+        for i, cm in enumerate(confusion_matrices):
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axs_cm[i])
+            axs_cm[i].set_title(f'Confusion Matrix\n({model_name}) for Fold {i + 1}')
+            axs_cm[i].set_xlabel('Predicted Label')
+            axs_cm[i].set_ylabel('True Label')
+
+        plt.tight_layout()
+        if model_name == 'Logistic Regression':
+            plt.savefig('figures/confusion_matrices_LR.png')
+        if model_name == 'KNearest':
+            plt.savefig('figures/confusion_matrices_knearest.png')
+        #eure model_names :) ...
+        if model_name == 'SVM':
+            plt.savefig('figures/confusion_matrices_SVM.png')
+
+        ##if model_name == ...:
+        for item in metrics:
+            print('{} {}: {:.3f} ± {:.3f}'.format(model_name,item.capitalize(), performance[item].mean(axis=0),performance[item].std(axis=0)))
 #bevor implementieren schauen welche parameter auswählen damit man die eingeben kann
 #embedded methods für feature selection abhängig von der model wahl --> z.b. bei logistic regression lasso, ridge möglich; bei Random Forest feature importance (alles durch die Funktion SelectFromModel(model([hypterparameters().best_params_]])) = irgendwas --> das dann .fit etc
 #SelectFromModel() kann bei allen estimators verwendet werden welche attribute coef_ oder feature_importances_ hat
 parameter ={'C':[0.001,0.01,0.1,1,10]}
+
 #everything(data,LogisticRegression(class_weight='balanced',max_iter=1000),parameter,1,'feature selection')
 #Hyperparameter tuning:
 #print(everything(data,LogisticRegression(class_weight='balanced',max_iter=1000),parameter,1, 'hyperparameter'))
 #C=0.1 am besten
 #everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'feature selection')
-everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'feature importance LR')
+#everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'feature importance LR')
+#everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'selected Features')
+everything(data,LogisticRegression(class_weight='balanced',max_iter=1000, C=0.1),parameter,1,'evaluation')
+
+
+svm_parameters = {'C': [0.001, 0.01, 0.1, 1, 10], 'kernel': ['linear', 'rbf', 'poly']}
+#print(everything(data, SVC(probability=True, class_weight='balanced'), svm_parameters, 1, 'hyperparameter').head(1))
+#best: C = 0.01, linear, fold 4
+parameter = {'C': [0.01], 'kernel': ['linear']}
+everything(data, SVC(probability=True, class_weight='balanced'), parameter, 1, 'evaluation')
+
