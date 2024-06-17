@@ -218,7 +218,7 @@ def everything(data, model,param, random,what):
     model_name = str(input("Which Model used? "))
     #Figures für die Feature selection bilder
     fig,axs = plt.subplots(5,1,figsize=(30,25))
-    fig2, axs2 = plt.subplots(1,5,figsize=(16,5))
+    fig2, axs2 = plt.subplots(1,5,figsize=(15,5))
     zeros = np.zeros((splits,len(X.columns.tolist())),dtype=int)
     selected_features = pd.DataFrame(zeros, index=np.arange(splits),columns = X.columns)
     confusion_matrices = []
